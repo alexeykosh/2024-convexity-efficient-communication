@@ -14,17 +14,19 @@ def softmax(x, temperature=1.0):
 class ConvexCluster:
     '''ConvexCluster class'''
 
-    def __init__(self, X, d, N, s, c):
+    def __init__(self, X, d, N, s, c, coords, reverse_labels):
         self.X = X # grid points
         self.d = d # intial distance
         self.N = N # number of categories
         self.s = s # smoothing factor
         self.c = c # convexity factor
         self.labels = {} # list of points per category
+        self.reverse_labels = reverse_labels
 
         # initialize the grid
-        self.coords = [(i, j) for i in range(X.shape[0]) 
-                       for j in range(X.shape[1])]
+        # self.coords = [(i, j) for i in range(X.shape[0]) 
+        #                for j in range(X.shape[1])]
+        self.coords = coords
         self.tree = cKDTree(self.coords)
         # random choice N points
         self.centroids = random.sample(self.coords, N)
@@ -118,9 +120,12 @@ class ConvexCluster:
         self.initial_partition()
         self.update_partition()
         self.update_centroids()
+
+        # real_labels =  [(i, j) for i in range(X.shape[0]) 
+        #                for j in range(X.shape[1])]
         
         label_matrix = np.zeros(self.X.shape)
-        for i, l in self.labels.items():
+        for i, l in iter(self.labels.items()):
             for p in l:
-                label_matrix[p] = i
+                label_matrix[self.reverse_labels[p]] = i
         return label_matrix
