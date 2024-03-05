@@ -1,5 +1,9 @@
 from numcompress import compress
 import numpy as np
+import zlib
+
+def safelog(x):
+    return np.log(x) if x > 0 else 0
 
 def non_dominated_front(points_x, points_y):
     """
@@ -31,12 +35,18 @@ def non_dominated_front(points_x, points_y):
     
     return pareto_front
 
-def safelog(vals):
-    with np.errstate(divide='ignore'):
-        return np.log(vals)
 
 def compression(grid):
-    return len(compress(grid.flatten().tolist()))
+    """
+    Compresses the given grid using zlib compression algorithm.
+
+    Parameters:
+    grid (numpy.ndarray): The grid to be compressed.
+
+    Returns:
+    int: The length of the compressed grid in bytes.
+    """
+    return np.log(len(zlib.compress(grid.tobytes())))
 
 
 def cost(grid, p_m, cielab_dict):
@@ -63,4 +73,4 @@ def cost(grid, p_m, cielab_dict):
 
 def informativeness(grid, p_m, cielab_dict):
     # return safelog(2 ** (-cost(grid, p_m)))
-    return -cost(grid, p_m, cielab_dict)
+    return -safelog(cost(grid, p_m, cielab_dict))
