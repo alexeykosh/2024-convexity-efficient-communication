@@ -13,7 +13,6 @@ def softmax(x, temperature=1.0):
 
 class ConvexCluster:
     '''ConvexCluster class'''
-
     def __init__(self, X, d, N, s, c, coords, reverse_labels):
         self.X = X # grid points
         self.d = d # intial distance
@@ -22,14 +21,40 @@ class ConvexCluster:
         self.c = c # convexity factor
         self.labels = {} # list of points per category
         self.reverse_labels = reverse_labels
-
-        # initialize the grid
-        # self.coords = [(i, j) for i in range(X.shape[0]) 
-        #                for j in range(X.shape[1])]
         self.coords = coords
         self.tree = cKDTree(self.coords)
-        # random choice N points
         self.centroids = random.sample(self.coords, N)
+    
+
+    def are_points_coplanar(self, points):
+        '''Check if a set of points are coplanar, or collinear in 2D'''
+        if len(points) < 3:
+            return True  # cannot build a convex hull with less than 3 points
+
+        # Determine the dimensionality of the points
+        dim = len(points[0])
+        
+        if dim == 2:
+            # Use the first point as the reference
+            p0 = np.array(points[0])
+            vectors = [np.array(p) - p0 for p in points[1:]]
+            # Check if all vectors are multiples of each other (indicating collinearity)
+            for i in range(1, len(vectors)):
+                if not np.allclose(np.cross(vectors[0], vectors[i]), 0):
+                    return False
+            return True
+
+        else: 
+            # Use the first point as the reference
+            p0 = np.array(points[0])
+            vectors = [np.array(p) - p0 for p in points[1:]]
+
+            # Create a matrix of vectors
+            matrix = np.vstack(vectors)
+
+            # Check if the rank of the matrix is less than the dimensionality (indicating coplanarity)
+            rank = np.linalg.matrix_rank(matrix)
+            return rank < dim
     
     def point_in_hull(self, point, hull, tolerance=1e-12):
         '''Check if a point is inside a convex hull'''
@@ -45,17 +70,19 @@ class ConvexCluster:
         # for each centroid, find the closest points within distance d 
         # and assign them to the same category
         for i, c in enumerate(self.centroids):
-            _, ind = self.tree.query(c, k=len(self.coords), 
-                                            distance_upper_bound=self.d)
-            for j in ind:
+            _, ind = self.tree.query(c, k=len(self.coords),
+                                     distance_upper_bound=self.d)
+            # remove duplicates from ind
+            for j in list(set(ind)):
                 if j < len(self.coords):
-                    self.labels[i].append(self.coords[j])
+                    # if the point is not the centroid, add it to the category
+                    if not np.array_equal(self.coords[j], c):
+                        self.labels[i].append(self.coords[j])
     
     def update_partition(self):
         '''Update the partition by assigning each point to the closest category'''
         # get a list of points that are unlabeled
-        unlabeled = [p for p in self.coords if 
-                     p not in sum(self.labels.values(), [])]
+        unlabeled = [p for p in self.coords if p not in sum(self.labels.values(), [])]
         while unlabeled:
             # randomly sample one of the unlabeled points
             p = random.choice(unlabeled)
@@ -68,30 +95,28 @@ class ConvexCluster:
             probs = softmax(1 / np.array(distances), temperature=self.c)
             # choose the category with the highest probability
             i = np.random.choice(range(len(self.labels)), p=probs)
-            # add the point to the category
-            self.labels[i].append(p)
+            # add the point to the category if not there already
+            if p not in self.labels[i]:
+                self.labels[i].append(p)
             # remove the point from the unlabeled list
             unlabeled.remove(p)
 
     def update_centroids(self):
         '''Update the centroids by taking the mean of the points in each category'''
         for i, l in self.labels.items():
-            try:
+            # if length of the category is more than 3 points (convex hull is doable)
+            if not self.are_points_coplanar(l):
                 hull = ConvexHull(l)
                 # find points that are in the convex hull
-                # but do not belong to the category
-                in_hull = [p for p in self.coords if 
-                        self.point_in_hull(p, hull)]
-                for p in random.sample(in_hull, 
-                                    int(self.s * len(in_hull))):
-                    # assign the point to the category
-                    # remove the point from the previous category
-                    for j, l in self.labels.items():
-                        if p in l:
+                in_hull = [p for p in self.coords if self.point_in_hull(p, hull)]
+                # randomly sample s * len(in_hull) points from in_hull
+                for p in random.sample(in_hull, int(self.s * len(in_hull))):
+                    # for all categories, remove the point from the category
+                    for j, lab in self.labels.items():
+                        if p in lab:
                             self.labels[j].remove(p)
                     self.labels[i].append(p)
-            except:
-                pass
+            
 
     def degree_of_convexity_cluster(self, cluster_points):
         '''
@@ -100,12 +125,11 @@ class ConvexCluster:
         Divide the number of points in the class 
         by the number of points inside the hull
         '''
-        try:
+        if not self.are_points_coplanar(cluster_points):
             hull = ConvexHull(cluster_points)
-            in_hull = [p for p in self.coords if 
-                    self.point_in_hull(p, hull)]
-            return len(cluster_points) / (len(in_hull) + 1)
-        except:
+            in_hull = [p for p in self.coords if self.point_in_hull(p, hull)]
+            return len(cluster_points) / len(in_hull)
+        else:
             return 1
 
     def degree_of_convexity(self):
@@ -120,9 +144,6 @@ class ConvexCluster:
         self.initial_partition()
         self.update_partition()
         self.update_centroids()
-
-        # real_labels =  [(i, j) for i in range(X.shape[0]) 
-        #                for j in range(X.shape[1])]
         
         label_matrix = np.zeros(self.X.shape)
         for i, l in iter(self.labels.items()):
