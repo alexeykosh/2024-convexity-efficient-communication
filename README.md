@@ -34,7 +34,7 @@ Word Color Survey data used in this study needs to be downloaded from the [WCS](
 After downloading the data, run the following command to extract the data:
 
 ```bash
-python3 preprocessing.py 
+python3 wcs_preprocessing.py 
 ```
 
 
