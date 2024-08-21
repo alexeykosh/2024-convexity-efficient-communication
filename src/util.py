@@ -2,7 +2,30 @@ import gzip
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
+from sklearn.metrics import f1_score
 
+
+def normalize_labels(arr):
+    '''Reorder the labels in an array to be consecutive integers starting from 0'''
+    # Find the unique labels in the array
+    unique_labels = np.unique(arr)
+    # Create a mapping from the old labels to new labels
+    label_mapping = {old_label: new_label for new_label, old_label in enumerate(unique_labels)}
+    # Apply the mapping to the array
+    normalized_array = np.vectorize(label_mapping.get)(arr)
+    return normalized_array
+
+
+def f1_macro(matrix1, matrix2):
+    '''Compute the macro F1 score between two color grids'''
+    # Flatten the matrices
+    labels1 = matrix1.flatten()
+    labels2 = matrix2.flatten()
+    
+    # Calculate the macro F1 score directly
+    macro_f1 = f1_score(labels1, labels2, average='weighted')
+    
+    return macro_f1
 
 def are_points_coplanar(points):
     '''Check if a set of points are coplanar, or collinear in 2D'''
@@ -129,8 +152,10 @@ def degree_of_convexity(arrays, all_coords=None):
     '''
     Compute the degree of convexity for the given array or arrays
     '''
-    # if all_coords is None:
-    #     all_coords = np.argwhere(arrays[0])
+    if all_coords is None:
+        # Get all coordinates in the grid
+        all_coords = [(i, j) for i in range(arrays[0].shape[0]) 
+                             for j in range(arrays[0].shape[1])]
     convexity_list = []
     for arr in arrays:
         labels = np.unique(arr)  # Get unique labels
