@@ -4,13 +4,12 @@ from collections import Counter
 from sklearn.metrics import normalized_mutual_info_score
 from scipy.spatial import distance
 from src.colorconv import ConvexCluster
-from src.util import compression, non_dominated_front
-from collections import defaultdict
 import pandas as pd
 from tqdm import trange
 
 # Helper function to generate lexicons
-def generate_lexicons(N, shape, n, max_attempts=10000, coords=None, coords_dict=None):
+def generate_lexicons(N, shape, n, max_attempts=10000, 
+                      coords=None, coords_dict=None):
     LS = []
     convexities = []
     attempts = 0
@@ -112,7 +111,8 @@ class BaseRSA:
 
 # Agent class inheriting from BaseRSA
 class Agent(BaseRSA):
-    def __init__(self, alpha, prior, shape, convex, Lexicons, convexities, threshold, beta, simple):
+    def __init__(self, alpha, prior, shape, convex, Lexicons, 
+                 convexities, threshold, beta, simple):
         super().__init__(alpha, prior)
         self.n_meanings = shape[0] * shape[1]
         self.Lexicons = Lexicons
@@ -166,7 +166,8 @@ class Agent(BaseRSA):
 
 # Experiment class
 class Experiment:
-    def __init__(self, alpha, prior, shape, n, n_iter, n_rounds, Lexicons, convex, threshold, beta, simple, convexities):
+    def __init__(self, alpha, prior, shape, n, n_iter, n_rounds, 
+                 Lexicons, convex, threshold, beta, simple, convexities):
         self.n_iter = n_iter
         self.n_rounds = n_rounds
         self.logs = {}
@@ -210,7 +211,8 @@ class Experiment:
             self.logs[i] = lexicons_
 
 # Plot function for lexicons
-def plot_last_lexicons(model, n_iter, pos=-1, n_examples=5, title=None):
+def plot_last_lexicons(model, n_iter, pos=-1, 
+                       n_examples=5, title=None):
     # Extract lexicon pairs
     lexicon_pairs = [(tuple(model.logs[i]['a1'][pos].flatten()), tuple(model.logs[i]['a2'][pos].flatten())) for i in range(n_iter)]
     
@@ -255,7 +257,9 @@ def generate_coords(shape):
     return coords, coords_dict
 
 
-def efficiency_simplicity_analysis(n, shape, N_min, N_max, beta, n_iter=500, n_rounds=100, coords=None, coords_dict=None):
+def efficiency_simplicity_analysis(n, shape, N_min, N_max, 
+                                   beta, n_iter=500, n_rounds=100,
+                                   coords=None, coords_dict=None):
 
     LS_ = []
     convex_lexicons = []
