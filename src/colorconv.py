@@ -13,7 +13,7 @@ def softmax(x, temperature=1.0):
 
 class ConvexCluster:
     '''ConvexCluster class'''
-    def __init__(self, X, d, N, s, c, coords, reverse_labels):
+    def __init__(self, X, d, N, s, c, coords, reverse_labels, p):
         self.X = X # grid points
         self.d = d # intial distance
         self.N = N # number of categories
@@ -23,7 +23,9 @@ class ConvexCluster:
         self.reverse_labels = reverse_labels
         self.coords = coords
         self.tree = cKDTree(self.coords)
-        self.centroids = random.sample(self.coords, N)
+        self.p = p
+        # self.centroids = random.sample(self.coords, N)
+        self.centroids = random.choices(self.coords, k=N, weights=p)
     
 
     def are_points_coplanar(self, points):
@@ -43,8 +45,7 @@ class ConvexCluster:
                 if not np.allclose(np.cross(vectors[0], vectors[i]), 0):
                     return False
             return True
-
-        else: 
+        else:
             # Use the first point as the reference
             p0 = np.array(points[0])
             vectors = [np.array(p) - p0 for p in points[1:]]
@@ -85,7 +86,9 @@ class ConvexCluster:
         unlabeled = [p for p in self.coords if p not in sum(self.labels.values(), [])]
         while unlabeled:
             # randomly sample one of the unlabeled points
-            p = random.choice(unlabeled)
+            # this is where sampling is uniform 
+            # p = random.choice(unlabeled)
+            p = random.choices(unlabeled, weights=[self.p[self.coords.index(u)] for u in unlabeled])[0]
             # find the distance to each of the closest points in each category
             distances = []
             for _, l in self.labels.items():
@@ -146,7 +149,9 @@ class ConvexCluster:
         self.update_centroids()
         
         label_matrix = np.zeros(self.X.shape)
+        label_matrix = np.where(label_matrix==0, np.nan, label_matrix)
         for i, l in iter(self.labels.items()):
             for p in l:
+                # label_matrix[self.reverse_labels[p]] = i + 1
                 label_matrix[self.reverse_labels[p]] = i
         return label_matrix
