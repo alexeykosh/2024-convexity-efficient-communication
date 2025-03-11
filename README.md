@@ -37,6 +37,8 @@ After downloading the data, run the following command to extract the data:
 python3 wcs_preprocessing.py 
 ```
 
+For some of the analysis, the probability of naming from Zaslavsky et al. (2018) is required. This data needs to be downloaded from this [link](https://www.dropbox.com/s/70w953orv27kz1o/IB_color_naming_model.zip?dl=1) and placed in the `data/` directory.
+
 
 ### Analysis:
 
