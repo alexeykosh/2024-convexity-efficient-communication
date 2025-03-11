@@ -59,9 +59,9 @@ def are_points_coplanar(points):
 
 def safelog(x):
     '''
-    Compute the logarithm of a positive number x, or return 0 if x is non-positive.
+    Compute the binary logarithm of a positive number x, or return 0 if x is negative.
     '''
-    return np.log(x) if x > 0 else 0
+    return np.log2(x) if x > 0 else 0
 
 
 def non_dominated_front(points_x, points_y):
@@ -92,7 +92,7 @@ def compression(grid):
     """
     Compresses the given grid using zlib compression algorithm.
     """
-    return np.log(len(gzip.compress(grid.tobytes(), compresslevel=9)))
+    return np.log2(len(gzip.compress(grid.tobytes(), compresslevel=9)))
 
 
 def cost(grid, p_m, cielab_dict):
@@ -102,23 +102,41 @@ def cost(grid, p_m, cielab_dict):
     # get all unique values in the grid
     C = np.unique(grid)
     # get list of all coordinates of each cell in the grid
-    M = [(i, j) for i in range(grid.shape[0]) 
-                       for j in range(grid.shape[1])]
+    # M = [(i-1, j-1) for i in range(grid.shape[0]) 
+    #                    for j in range(grid.shape[1])]
+    excluded = {
+        (-1, j) for j in range(40)
+    }.union({
+            (8, j) for j in range(40)
+        })
+
+    # Generate all coordinates
+    M = [(i - 1, j - 1) for i in range(grid.shape[0]) 
+                                for j in range(grid.shape[1])]
+
+    # Filter out the excluded coordinates
+    M = [coord for coord in M if coord not in excluded]
+
     # p_m equals to 1 divided by the number of cells in the grid
     if p_m is None:
         p_m = np.array([1 / len(M)] * len(M))
         # p_m = p_m.reshape((8, 40))
-        p_m = p_m.reshape(grid.shape)   
+        p_m = p_m.reshape(grid.shape)
 
     cost_ = 0
 
     for c in C:
-        coords = np.argwhere(grid == c)
-        for m in M:
-            # coordiantes should be mapped using cielab_dict
-            coords_cielab = np.array([cielab_dict[tuple(k)] for k in coords.tolist()])
-            distance = np.linalg.norm(cielab_dict[m] - coords_cielab) ** 2
-            cost_ += np.exp( - (p_m[m] * distance))
+        if not np.isnan(c):
+            coords = np.argwhere(grid == c)
+            # remove -1 from each coordinate
+            coords = [(i - 1, j - 1) for i, j in coords]
+            for m in M:
+                # coordiantes should be mapped using cielab_dict
+                # try:
+                coords_cielab = np.array([cielab_dict[tuple(k)] for k in coords])
+                distance = np.linalg.norm(cielab_dict[m] - coords_cielab) ** 2
+                cost_ += np.exp( - (p_m[m] * distance))
+    
     return cost_
 
 
@@ -166,13 +184,23 @@ def degree_of_convexity(arrays, all_coords=None):
     return np.array(convexity_list)
 
 
-def degree_of_convexity_cielab(arrays, coord_dict, all_coords):
-    '''Compute the degree of convexity for the given array or arrays, but get coordinates from a dictionary (coordinate on a grid --> CIELAB coordinates)'''
+def degree_of_convexity_cielab(arrays, coord_dict, all_coords, cut=False):
+    '''Compute the degree of convexity for the given array or arrays, but get 
+    coordinates from a dictionary (coordinate on a grid --> CIELAB coordinates)
+    
+    NB: check whether subtracting 1 from the coordinates is necessary
+    '''
     convexity_list = []
     for arr in arrays:
         labels = np.unique(arr)  # Get unique labels
-        convexities = [degree_of_convexity_cluster([coord_dict[tuple(coord)] for coord 
-                                                    in np.argwhere(arr == label)], all_coords) for label in labels]
+        if cut:
+            convexities = [degree_of_convexity_cluster([coord_dict[tuple(coord)] for coord 
+                                                        in np.argwhere(arr == label)], all_coords) 
+                                                        for label in labels]
+        else:
+            convexities = [degree_of_convexity_cluster([coord_dict[(coord[0]-1, coord[1]-1)] for coord 
+                                                        in np.argwhere(arr == label)], all_coords) 
+                                                        for label in labels]
         weights = [np.sum(arr == label) for label in labels]
         convexity = np.average(convexities, weights=weights)
         convexity_list.append(convexity)
@@ -182,6 +210,7 @@ def degree_of_convexity_cielab(arrays, coord_dict, all_coords):
 def plot_color_grid(grid, rgb_dict, prior_m_matrix):
     """
     Plots a grid with colors corresponding to categories and their respective RGB values.
+    Nan values are shown in white.
     """
     
     # Create an empty dictionary to store the RGB values for each unique category in the grid
@@ -189,26 +218,32 @@ def plot_color_grid(grid, rgb_dict, prior_m_matrix):
 
     # Loop through each unique category in the grid
     for color_c in np.unique(grid):
-        # Get the coordinates of all cells belonging to the current category
-        coordinates = np.argwhere(grid == color_c)
-        
-        # Extract probabilities for each coordinate from prior_m_matrix and normalize them
-        probs = [prior_m_matrix[coord[0], coord[1]] for coord in coordinates]
-        probs = np.array(probs) / sum(probs)
-
-        # Find the coordinate with the highest probability
-        max_prob_coord = coordinates[np.argmax(probs)]
-        
-        # Map the category to its corresponding RGB value
-        color_map[color_c] = rgb_dict[max_prob_coord[0] + 1, max_prob_coord[1] + 1]
+        # if value is not nan
+        if not np.isnan(color_c):
+            # Get the coordinates of all cells belonging to the current category
+            coordinates = np.argwhere(grid == color_c)
+            
+            # Extract probabilities for each coordinate from prior_m_matrix and normalize them
+            probs = [prior_m_matrix[coord[0], coord[1]] for coord in coordinates]
+            probs = np.array(probs) / sum(probs)
+            
+            # Find the coordinate with the highest probability
+            max_prob_coord = coordinates[np.argmax(probs)]
+            
+            # Map the category to its corresponding RGB value
+            color_map[color_c] = rgb_dict[max_prob_coord[0], max_prob_coord[1]]
 
     # Create an empty image with the same shape as the grid but with an additional dimension for RGB channels
     image = np.zeros((grid.shape[0], grid.shape[1], 3))
 
-    # Assign colors to each cell in the image based on the grid values and color_map
+    # Assign colors to each cell in the image based on the grid values and color_map.
+    # Nan cells are filled with white.
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
-            image[i, j] = color_map[grid[i, j]]
+            if np.isnan(grid[i, j]):
+                image[i, j] = [1, 1, 1]
+            elif grid[i, j] in color_map:
+                image[i, j] = color_map[grid[i, j]]
 
     return image
 
@@ -332,3 +367,48 @@ def letter_subplots(axes=None, letters=None, xoffset=-0.1, yoffset=1.0, **kwargs
         t = ax.annotate(lbl, xy=(xoff,yoff), **kwargs)
         list_txts.append(t)
     return list_txts
+
+
+def MI(joint_dist):
+    """
+    Calculate the mutual information from the joint distribution matrix.
+    
+    Parameters:
+        joint_dist (numpy.ndarray): 2D array representing the joint probability distribution
+                                    of two random variables. Each entry joint_dist[i][j]
+                                    is the joint probability of (X=i, Y=j).
+                                    
+    Returns:
+        float: Mutual information I(X;Y).
+    """
+    # Ensure the joint distribution is a NumPy array
+    joint_dist = np.array(joint_dist)
+    
+    # Marginal distributions
+    marginal_x = np.sum(joint_dist, axis=1)  # Sum over rows
+    marginal_y = np.sum(joint_dist, axis=0)  # Sum over columns
+    
+    # Calculate mutual information
+    mi = 0.0
+    for i in range(joint_dist.shape[0]):
+        for j in range(joint_dist.shape[1]):
+            if joint_dist[i, j] > 0:  # Avoid log(0)
+                mi += joint_dist[i, j] * np.log2(
+                    joint_dist[i, j] / (marginal_x[i] * marginal_y[j])
+                )
+    return mi
+
+
+def complexity(p_m_w, p_m):
+    '''
+    Complexity given language (p_m_w) and probability of meaning (p_m)
+    '''
+    return MI(p_m_w * p_m)
+
+
+def informativity(p_m_w, pU_m, p_m):
+    '''
+    Iformativity, given meaning space pU_m, probability of meaning (p_m)
+    and language (p_m_w)
+    '''
+    return MI((p_m_w * p_m).T @ pU_m)

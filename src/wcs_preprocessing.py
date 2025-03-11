@@ -49,12 +49,12 @@ chips['row'] = chips['row'].apply(lambda x: ROWS.index(x))
 # Create a dictionary mapping chip ID to (row, col)
 chip_dict = {row['id']: (row['row'], row['col']) for _, row in chips.iterrows()}
 # Find chip numbers in column 0
-row_0 = [k for k, v in chip_dict.items() if v[1] == 0]
+# row_0 = [k for k, v in chip_dict.items() if v[1] == 0]
 
 # Load term data
 terms = pd.read_csv('data/raw/term.txt', sep='\t', header=None, names=['lg', 'speaker', 'chip', 'term'])
 # Remove terms corresponding to chips in column 0
-terms = terms[~terms['chip'].isin(row_0)]
+# terms = terms[~terms['chip'].isin(row_0)]
 # Map chips to their coordinates
 terms['row'] = terms['chip'].apply(lambda x: chip_dict[x][0])
 terms['col'] = terms['chip'].apply(lambda x: chip_dict[x][1])
